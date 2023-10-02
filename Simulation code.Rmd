@@ -393,8 +393,10 @@ for(baseline2 in ActiveScenario$list_baseline2){
                 AEA_included = sum(cases$event),
                 FEA_included = sum(cases$eventnum1), 
                 GPA_included = nrow(testcase %>% filter(eventnum1_cut_guide > 0)),
+                # number of included events that contribute to the likelihood
                 GPA_included_cont = nrow(testcase %>% filter(eventnum1_cut_guide > 0) %>% filter(expos > 0)),
                 
+                # Analysis point estimates
                 allevent = allevent.analysis$coefficients,
                 firstevent = firstevent.analysis$coefficients,
                 OT_adj_2 = OT_adj_2.analysis$coefficients["expos"],
@@ -402,6 +404,7 @@ for(baseline2 in ActiveScenario$list_baseline2){
                 combinedpartition_fixed_2 = partition2.analysis$coefficients,
                 combinedpartition_guide = partitionguide.analysis$coefficients,
                 
+                # Analysis SE's
                 iidse_allevent = allevent.analysis$se,
                 iidse_firstevent = firstevent.analysis$se,
                 iidse_OT_adj_2 = OT_adj_2.analysis$se["expos"],
@@ -441,8 +444,10 @@ for(baseline2 in ActiveScenario$list_baseline2){
                 AEA_included = sum(cases$event),
                 FEA_included = sum(cases$eventnum1), 
                 GPA_included =  nrow(testcase %>% filter(eventnum1_cut_guide > 0)),
+                # number of included events that contribute to the likelihood
                 GPA_included_cont = nrow(testcase %>% filter(eventnum1_cut_guide > 0) %>% filter(expos > 0  | season > 0)),
                 
+                # Analysis point estimates
                 allevent = allevent.analysis$coefficients["expos"],
                 firstevent = firstevent.analysis$coefficients["expos"],
                 OT_adj_2 = OT_adj_2.analysis$coefficients["expos"],
@@ -450,6 +455,7 @@ for(baseline2 in ActiveScenario$list_baseline2){
                 combinedpartition_fixed_2 = partition2.analysis$coefficients["expos"],
                 combinedpartition_guide = partitionguide.analysis$coefficients["expos"],
 
+                # Analysis SE's
                 iidse_allevent = allevent.analysis$se["expos"],
                 iidse_firstevent = firstevent.analysis$se["expos"],
                 iidse_OT_adj_2 = OT_adj_2.analysis$se["expos"],
@@ -472,6 +478,5 @@ Sys.time()-start.time
 results
 # # Export CSV
 write.csv(results, paste0("Simulated Data Results/", "results_Scenario", ScenarioNumber, ".csv"), row.names = FALSE)
-
 ```
 
