@@ -10,3 +10,49 @@ editor_options:
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+```{r Packages}
+library(dplyr)
+
+# "fixest" for fast estimation of fixed effects models
+library(fixest)
+setFixest_nthreads(1, save = FALSE)
+getFixest_nthreads()
+```
+
+```{r Functions}
+# function for partitioning
+partitionf <- function(df, cut_point){
+  df2 <- df %>%
+    group_by(indiv, .data[[cut_point]]) %>%
+    mutate(
+      rownum = 1:n(),
+      eventI = ifelse(event>0, 1, 0) # greater than one
+    )
+  firstevent_index <- df2 %>% 
+    summarise(
+      rownum = which(eventI==1)[1]#, # index of the first >0 eve t
+    ) %>% suppressMessages()
+  firstevent_index[,paste0("eventnum1_", cut_point)] <- ifelse(!is.na(firstevent_index$rownum), 1, 0)
+
+  
+  df3 <- merge(df2, firstevent_index,  by=c("indiv",cut_point,"rownum"), all.x= TRUE) %>%
+    arrange(indiv, intstart)
+  df3[,paste0("eventnum1_", cut_point)] <- ifelse(is.na(df3[,paste0("eventnum1_", cut_point)]), 0, df3[,paste0("eventnum1_", cut_point)])
+  df3
+  return(df3)
+}
+
+# function for probability of event
+pev <- function(lambda, nevent, result){
+  (exp(-lambda)*(lambda^nevent)/(factorial(nevent)*(1-exp(-lambda))))-result
+}
+```
+
+```{r Import simulation guide}
+SimScenarios <- read.csv("SimScenarios.csv")
+```
+
+```{r Simulation code}
+
+```
+
