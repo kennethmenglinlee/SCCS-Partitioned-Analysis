@@ -614,11 +614,5 @@ results
 # # Export CSV
 write.csv(results, paste0("Simulated Data Results/", "results_Scenario", ScenarioNumber, ".csv"), row.names = FALSE)
 
-# # Import CSV
-# results1 <- read.csv("C:/Users/kenny/OneDrive/Professional/#Education/Duke-NUS PhD/Thesis/Partitioned SCCS Notes/R/Tests/R Results/Results_Seasonsn_Sims20_Date8_9.csv")
-# results2 <- read.csv("C:/Users/kenny/OneDrive/Professional/#Education/Duke-NUS PhD/Thesis/Partitioned SCCS Notes/R/Tests/R Results/Results_Seasonsy_Sims20_Date8_9.csv")
-# # bind results from example 1 (season = y) and example 2 (season = n)
-# results <- rbind(results1, results2)
-
 ```
 
