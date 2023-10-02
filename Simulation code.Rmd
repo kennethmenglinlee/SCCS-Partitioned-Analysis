@@ -54,13 +54,13 @@ SimScenarios
 
 # set active scenario
 # select the corresponding scenario number from min(SimScenarios$X):max(SimScenarios$X) 
-ScenarioNumber <- 4
+ScenarioNumber <- 2
 ActiveScenario <- SimScenarios %>% filter(sim_scenario_n == ScenarioNumber)
 ```
 
 ```{r Simulation code}
 # Create export df
-conditions <- c("cond_baseline2_E.events", "cond_RIexpo","cond_eventdependence","cond_exposdist","cond_season")
+conditions <- c("cond_baseline2_E.events", "cond_RIexpo","cond_eventdependence","cond_exposdist","cond_season", "n_partitions", "lambdadotdot", "AEA_included", "FEA_included", "GPA_included", "GPA_included_cont")
 save <- c("allevent", "firstevent", "OT_adj_2", "OT_adj_guide", "combinedpartition_fixed_2", "combinedpartition_guide")
 savenames <- c("scenario", conditions, save, paste0("iidse_", save[1:4]), paste0("clusterse_", save[5:6]))
 savenames
@@ -73,7 +73,7 @@ if(ActiveScenario$list_exposdist != "Seasonal"){
   ntime = 100
   expo_length = 10
   season <- "n"
-}else if (ActiveScenario$list_exposdist != "Seasonal"){
+}else if (ActiveScenario$list_exposdist == "Seasonal"){
   ntime = 730
   expo_length = 14
   season <- "y"
@@ -85,7 +85,7 @@ nindiv = 1000 # same as Whitaker et al. (2018)
 baseline1 <- 0.05/ntime # E[event] = 0.05
 
 # n_sims <- 2000
-n_sims <- 5
+n_sims <- 2
 
 set.seed(ActiveScenario$seed)
 
@@ -106,20 +106,22 @@ for(baseline2 in ActiveScenario$list_baseline2){
           #-----CREATE DATA [START]-----
           # 1. create individuals in wide-format until we have ncases
           while(ncases < nindiv){
-            
-            # exposure start
-            expo_temp <- ifelse( # if random uniform
-              exposdist == "Uniform",
-              sample(1:(ntime-expo_length), 1, replace=T),
-              ifelse( # if random Early
-                exposdist == "Early",
-                rbeta(1, shape1=1, shape2=3)*(ntime-expo_length),
-                ifelse( # if random late
-                  exposdist == "Late",
-                  rbeta(1, shape1=3, shape2=1)*(ntime-expo_length), 
+            if(exposdist != "Seasonal"){
+              
+              # exposure start
+              expo_temp <- ifelse( # if random uniform
+                exposdist == "Uniform",
+                sample(1:(ntime-expo_length), 1, replace=T),
+                ifelse( # if random Early
+                  exposdist == "Early",
+                  rbeta(1, shape1=1, shape2=3)*(ntime-expo_length),
+                  ifelse( # if random late
+                    exposdist == "Late",
+                    rbeta(1, shape1=3, shape2=1)*(ntime-expo_length), 
+                  )
                 )
               )
-            )
+            }
             if(exposdist == "Seasonal"){
               expo_temp <- t(c(sample(245:(365-expo_length), 1, replace=T), sample(610:(730-expo_length), 1, replace=T)))
             }
@@ -360,11 +362,16 @@ for(baseline2 in ActiveScenario$list_baseline2){
           # saving results depending on whether or not we adjust for seasonal effect
           if(season == "n"){
             
+            testcase <- cases_partitioned_guide %>%
+              group_by(indiv) %>%
+              summarise(across(c(eventnum1_cut_guide, expos), sum)) %>%
+              ungroup()
+            
             allevent.analysis <- tryCatch(fixest::fepois(event ~ offset(log(intlength)) + expos | as.factor(indiv), data=cases, vcov="iid", ssc=ssc(adj=F)), error=function(e){NA}) %>% suppressMessages()
             firstevent.analysis <- tryCatch(fixest::fepois(eventnum1 ~ offset(log(intlength)) + expos | as.factor(indiv), data=cases, vcov="iid", ssc=ssc(adj=F)), error=function(e){NA}) %>% suppressMessages()
                         
-            time_adj_2.analysis <- tryCatch(fixest::fepois(eventnum1 ~ offset(log(intlength)) + expos + as.factor(cut_fixed_2) | as.factor(indiv), data=cases, vcov="iid", ssc=ssc(adj=F)), error=function(e){NA}) %>% suppressMessages()
-            time_adj_guide.analysis <- tryCatch(fixest::fepois(eventnum1 ~ offset(log(intlength)) + expos + as.factor(cut_guide) | as.factor(indiv), data=cases, vcov="iid", ssc=ssc(adj=F)), error=function(e){NA}) %>% suppressMessages()
+            OT_adj_2.analysis <- tryCatch(fixest::fepois(eventnum1 ~ offset(log(intlength)) + expos + as.factor(cut_fixed_2) | as.factor(indiv), data=cases, vcov="iid", ssc=ssc(adj=F)), error=function(e){NA}) %>% suppressMessages()
+            OT_adj_guide.analysis <- tryCatch(fixest::fepois(eventnum1 ~ offset(log(intlength)) + expos + as.factor(cut_guide) | as.factor(indiv), data=cases, vcov="iid", ssc=ssc(adj=F)), error=function(e){NA}) %>% suppressMessages()
             
             partition2.analysis <- tryCatch(fixest::fepois(eventnum1_cut_f_2 ~ offset(log(intlength)) + expos | as.factor(indiv), data=cases_partitioned_fixed_2, cluster=~indiv_round, ssc=ssc(adj=F)), error=function(e){NA}) %>% suppressMessages()
             partitionguide.analysis <- tryCatch(fixest::fepois(eventnum1_cut_guide  ~ offset(log(intlength)) + expos | as.factor(indiv), data=cases_partitioned_guide, cluster=~indiv_round, ssc=ssc(adj=F)), error=function(e){NA}) %>% suppressMessages()
@@ -373,23 +380,41 @@ for(baseline2 in ActiveScenario$list_baseline2){
               dplyr::add_row(
                 scenario = ScenarioNumber,
                 
-                cond_baseline2_E.events=baseline2*ntime, cond_RIexpo=RIexpo, cond_eventdependence=eventdependence, cond_exposdist=exposdist, cond_season=season,
+                cond_baseline2_E.events=baseline2*ntime, 
+                cond_RIexpo=RIexpo, 
+                cond_eventdependence=eventdependence, 
+                cond_exposdist=exposdist, 
+                cond_season=season,
+                
+                n_partitions = cutpoint_guide_num,
+                lambdadotdot = est_cumul_inc,
+                
+                # number of included events
+                AEA_included = sum(cases$event),
+                FEA_included = sum(cases$eventnum1), 
+                GPA_included = nrow(testcase %>% filter(eventnum1_cut_guide > 0)),
+                GPA_included_cont = nrow(testcase %>% filter(eventnum1_cut_guide > 0) %>% filter(expos > 0)),
                 
                 allevent = allevent.analysis$coefficients,
                 firstevent = firstevent.analysis$coefficients,
-                OT_adj_2 = time_adj_2.analysis$coefficients["expos"],
-                OT_adj_guide = time_adj_guide.analysis$coefficients["expos"],
+                OT_adj_2 = OT_adj_2.analysis$coefficients["expos"],
+                OT_adj_guide = OT_adj_guide.analysis$coefficients["expos"],
                 combinedpartition_fixed_2 = partition2.analysis$coefficients,
                 combinedpartition_guide = partitionguide.analysis$coefficients,
                 
                 iidse_allevent = allevent.analysis$se,
                 iidse_firstevent = firstevent.analysis$se,
-                iidse_OT_adj_2 = time_adj_2.analysis$se["expos"],
-                iidse_OT_adj_guide = time_adj_guide.analysis$se["expos"],
+                iidse_OT_adj_2 = OT_adj_2.analysis$se["expos"],
+                iidse_OT_adj_guide = OT_adj_guide.analysis$se["expos"],
                 clusterse_combinedpartition_fixed_2 = partition2.analysis$se,
                 clusterse_combinedpartition_guide = partitionguide.analysis$se
               )
           }else if(season == "y"){
+            
+            testcase <- cases_partitioned_guide %>%
+              group_by(indiv) %>%
+              summarise(across(c(eventnum1_cut_guide, expos, season), sum)) %>%
+              ungroup()
             
             allevent.analysis <- tryCatch(fixest::fepois(event ~ offset(log(intlength)) + expos + season | as.factor(indiv), data=cases, vcov="iid", ssc=ssc(adj=F)), error=function(e){NA}) %>% suppressMessages()
             firstevent.analysis <- tryCatch(fixest::fepois(eventnum1 ~ offset(log(intlength)) + expos + season | as.factor(indiv), data=cases, vcov="iid", ssc=ssc(adj=F)), error=function(e){NA}) %>% suppressMessages()
@@ -404,19 +429,31 @@ for(baseline2 in ActiveScenario$list_baseline2){
               dplyr::add_row(
                 scenario = ScenarioNumber,
                 
-                cond_baseline2_E.events=baseline2*ntime, cond_RIexpo=RIexpo, cond_eventdependence=eventdependence, cond_exposdist=exposdist, cond_season=season,
+                cond_baseline2_E.events=baseline2*ntime, 
+                cond_RIexpo=RIexpo, 
+                cond_eventdependence=eventdependence, 
+                cond_exposdist=exposdist, cond_season=season,
+                
+                n_partitions = cutpoint_guide_num,
+                lambdadotdot = est_cumul_inc,
+                
+                # number of included events
+                AEA_included = sum(cases$event),
+                FEA_included = sum(cases$eventnum1), 
+                GPA_included =  nrow(testcase %>% filter(eventnum1_cut_guide > 0)),
+                GPA_included_cont = nrow(testcase %>% filter(eventnum1_cut_guide > 0) %>% filter(expos > 0  | season > 0)),
                 
                 allevent = allevent.analysis$coefficients["expos"],
                 firstevent = firstevent.analysis$coefficients["expos"],
-                OT_adj_2 = time_adj_2.analysis$coefficients["expos"],
-                OT_adj_guide = time_adj_guide.analysis$coefficients["expos"],
+                OT_adj_2 = OT_adj_2.analysis$coefficients["expos"],
+                OT_adj_guide = OT_adj_guide.analysis$coefficients["expos"],
                 combinedpartition_fixed_2 = partition2.analysis$coefficients["expos"],
                 combinedpartition_guide = partitionguide.analysis$coefficients["expos"],
 
                 iidse_allevent = allevent.analysis$se["expos"],
                 iidse_firstevent = firstevent.analysis$se["expos"],
-                iidse_OT_adj_2 = time_adj_2.analysis$se["expos"],
-                iidse_OT_adj_guide = time_adj_guide.analysis$se["expos"],
+                iidse_OT_adj_2 = OT_adj_2.analysis$se["expos"],
+                iidse_OT_adj_guide = OT_adj_guide.analysis$se["expos"],
                 clusterse_combinedpartition_fixed_2 = partition2.analysis$se["expos"],
                 clusterse_combinedpartition_guide = partitionguide.analysis$se["expos"]
               )
