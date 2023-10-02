@@ -54,7 +54,7 @@ SimScenarios
 
 # set active scenario
 # select the corresponding scenario number from min(SimScenarios$X):max(SimScenarios$X) 
-ScenarioNumber <- 1 
+ScenarioNumber <- 4
 ActiveScenario <- SimScenarios %>% filter(sim_scenario_n == ScenarioNumber)
 ```
 
@@ -76,10 +76,7 @@ if(ActiveScenario$list_exposdist != "Seasonal"){
 }else if (ActiveScenario$list_exposdist != "Seasonal"){
   ntime = 730
   expo_length = 14
-  # exposdist <- "Seasonal"
-  # list_exposdist <- c("Seasonal")
   season <- "y"
-  # RIseason <- 1
   RIseason <- 2
 }
 
@@ -116,13 +113,10 @@ for(baseline2 in ActiveScenario$list_baseline2){
               sample(1:(ntime-expo_length), 1, replace=T),
               ifelse( # if random Early
                 exposdist == "Early",
-                # round(EnvStats::rtri(n=1, min=0, max=ntime-expo_length, mode = 0.5)),
-                rbeta(1, shape1=1, shape2=3)*(ntime-expo_length), # rbeta(1000, shape1=1, shape2=3) %>% density() %>% plot()
+                rbeta(1, shape1=1, shape2=3)*(ntime-expo_length),
                 ifelse( # if random late
                   exposdist == "Late",
-                  # round(EnvStats::rtri(n=1, min=0, max=ntime-expo_length, mode = ntime-expo_length-0.5)),
-                  rbeta(1, shape1=3, shape2=1)*(ntime-expo_length), # rbeta(1000, shape1=3, shape2=1) %>% density() %>% plot()
-                  "" # don't do anything
+                  rbeta(1, shape1=3, shape2=1)*(ntime-expo_length), 
                 )
               )
             )
@@ -185,9 +179,6 @@ for(baseline2 in ActiveScenario$list_baseline2){
               
               # 2. we alter lambda using the seasonal effect
               if(season=="y"){
-                # lambda2 <- lambda
-                
-                # 8/8/2022 THIS ONE IS GOOD?
                 x = 1:length(season_temp)
                 lambda <- ifelse(
                   # if there is one entry of vector x where the given statement is TRUE
@@ -199,7 +190,7 @@ for(baseline2 in ActiveScenario$list_baseline2){
               
               
               # set interval remaining time
-              tremain <- temp[,i+1]-temp[,i] # this should hold up, but I'm worried with too many cutpoints, may be an issue? (but may not be a problem with memoryless? unsure)
+              tremain <- temp[,i+1]-temp[,i]
               
               
               # while there is still time remaining
@@ -217,10 +208,6 @@ for(baseline2 in ActiveScenario$list_baseline2){
                 # event time
                 t <- -log(1-u)/(lambda*eventdep)
                 
-                
-                
-                # print(paste("time =",t))
-                
                 # if event time is less than the remaining time
                 if(t < tremain){
                   # add event to event counter
@@ -228,15 +215,12 @@ for(baseline2 in ActiveScenario$list_baseline2){
                   # new remaining time
                   tremain = tremain - t
                   
-                  # print(paste("remaining time =",tremain))
-                  
                   # add column with event time
                   temp[,paste0("tevent", eventcounter)] = temp[,i+1] - tremain
                   
                   # if event time is greater than remaining time
                 }else{
                   # end the while loop
-                  # tremain = tremain - t
                   tremain = 0
                 }
               }
@@ -244,18 +228,15 @@ for(baseline2 in ActiveScenario$list_baseline2){
             #-----GENERATE EVENTS [END]-----
             
             temp$nevent <- eventcounter
-            temp$baseline <- baseline_sample # p(0) = 0.95, p(1) = 0.05
+            temp$baseline <- baseline_sample
             temp$indiv <- ncases+1
             temp <- temp %>% select(indiv, nevent, everything())
-            
-            # cases <- dplyr::bind_rows(cases, temp)
             
             # only keep cases
             if(temp$nevent > 0){
               cases_wide <- dplyr::bind_rows(cases_wide, temp)
               # for the while loop
               ncases <- ncases+1
-              # print(ncases)
             }
           }
           
@@ -266,22 +247,18 @@ for(baseline2 in ActiveScenario$list_baseline2){
           ## Recommended cutpoints
           case_dist <- data.frame(table(cases_wide$nevent)/1000)
           est_cumul_inc <- uniroot(pev, nevent=as.numeric(case_dist$Var1[1]), result=as.numeric(case_dist$Freq[1]), lower=-100, upper=100)$root
-          # est_cumul_inc <- uniroot(momest, avg=sum(as.numeric(case_dist$Var1) * case_dist$Freq), lower=-100, upper=100)$root
           cutpoint_guide_num <- round(est_cumul_inc/0.1)
           cutpoint_guide <- t(seq(from = 0+ntime/cutpoint_guide_num, to = ntime-ntime/cutpoint_guide_num, by = ntime/cutpoint_guide_num))
           
           ## fixed cutpoints
           cutpoint_fixed_2 <- t(seq(from = 0+ntime/2, to = ntime-ntime/2, by = ntime/2))
-          cutpoint_fixed_4 <- t(seq(from = 0+ntime/4, to = ntime-ntime/4, by = ntime/4))
-          cutpoint_fixed_6 <- t(seq(from = 0+ntime/6, to = ntime-ntime/6, by = ntime/6))
-          
-          ## 1 random cutpoint
-          cutpoint_random_2 <- replicate(nindiv, sort(sample(1:(ntime-expo_length), 1, replace=T)))
-          
+
           ## add cutpoints
           # cases_wide <- cases_wide %>% select(-contains("tcut"))
-          cases_wide <- data.frame(cases_wide, tcut_fixed_2 = cutpoint_fixed_2, tcut_fixed_4 = cutpoint_fixed_4, tcut_fixed_6 = cutpoint_fixed_6, tcut_random_2 = cutpoint_random_2, tcut_guide = cutpoint_guide) 
-          cases_wide # export this cases_wide later - can be fed in at this point to generate the rest of the results if need
+          cases_wide <- data.frame(cases_wide, tcut_fixed_2 = cutpoint_fixed_2, tcut_guide = cutpoint_guide) 
+          cases_wide 
+          # export this cases_wide later
+          # can be fed in at this point to generate the rest of the results
           
           # convert cases to long form
           cases_long <- cases_wide %>%
@@ -293,8 +270,6 @@ for(baseline2 in ActiveScenario$list_baseline2){
             mutate(
               intstart_lag = dplyr::lag(intstart, default=0),
               intlength = intstart - intstart_lag#,
-              # expos = ifelse(int=="expoend", 1, 0)
-              # expos = ifelse(grepl("expoend", int), 1, 0)
             ) %>%  
             # reorder so tevent is at end
             select(-contains("tevent"), contains("tevent"))
@@ -333,21 +308,9 @@ for(baseline2 in ActiveScenario$list_baseline2){
               cases_long$season <- cases_long$season + ifelse(cases_long$intstart > cases_long[,paste0("seasonstart",I)] & cases_long$intstart <= cases_long[,paste0("seasonend",I)], 1, 0)
             }
           }
-          # cases_long %>% select(indiv, int, intstart, intlength, season)
-          
+
           # create a cut dummy variable corresponding to correct interval
           cases_long$cut_fixed_2 <- ifelse(cases_long$intstart_lag < cases_long$tcut_fixed_2, 0, 1)
-          cases_long$cut_random_2 <- ifelse(cases_long$intstart_lag < cases_long$tcut_random_2, 0, 1)
-          for(i in 1:3){
-            # if there is only 1 cut, then it's only "tcut_fixed", if there are n cuts, its "tcut_fixed.n"
-            I <- paste0(".",i)
-            cases_long[,paste0("cut_fixed_4",I)] <- ifelse(cases_long$intstart_lag < cases_long[,paste0("tcut_fixed_4",I)], 0, 1)
-          }
-          for(i in 1:5){
-            # if there is only 1 cut, then it's only "tcut_fixed", if there are n cuts, its "tcut_fixed.n"
-            I <- paste0(".",i)
-            cases_long[,paste0("cut_fixed_6",I)] <- ifelse(cases_long$intstart_lag < cases_long[,paste0("tcut_fixed_6",I)], 0, 1)
-          }
           ## for recommended cutpoints
           if(length(cutpoint_guide)==1){
             cases_long$cut_guide <- ifelse(cases_long$intstart_lag < cases_long$tcut_guide, 0, 1)
@@ -370,9 +333,6 @@ for(baseline2 in ActiveScenario$list_baseline2){
               event = rowSums(select(., starts_with("eventnum")), na.rm=T),
               # sum up cut dummy variables into one cut categorical variable
               cut_f_2 = rowSums(select(., starts_with("cut_fixed_2")), na.rm=T),
-              cut_f_4 = rowSums(select(., starts_with("cut_fixed_4")), na.rm=T),
-              cut_f_6 = rowSums(select(., starts_with("cut_fixed_6")), na.rm=T),
-              cut_r_2 = rowSums(select(., starts_with("cut_random")), na.rm=T),
               cut_guide = rowSums(select(., starts_with("cut_guide")), na.rm=T)
             )  %>%
             # only keep entries with intlength != 0, this removes obsstart rows
@@ -384,29 +344,8 @@ for(baseline2 in ActiveScenario$list_baseline2){
             mutate(
               indiv_round = indiv,
               indiv = paste0(indiv,".",cut_f_2),
-              # cut variable so it works with metaf function
               cut=cut_f_2
             )
-          # cases_partitioned_fixed_4 <- partitionf(df=cases, cut_point="cut_f_4") %>%
-          #   mutate(
-          #     indiv_round = indiv,
-          #     indiv = paste0(indiv,".",cut_f_4),
-          #     # cut variable so it works with metaf function
-          #     cut=cut_f_4
-          #   )
-          # cases_partitioned_fixed_6 <- partitionf(df=cases, cut_point="cut_f_6") %>%
-          #   mutate(
-          #     indiv_round = indiv,
-          #     indiv = paste0(indiv,".",cut_f_6),
-          #     # cut variable so it works with metaf function
-          #     cut=cut_f_6
-          #   )
-          # cases_partitioned_random_2 <- partitionf(df=cases, cut_point="cut_r_2") %>%
-          #   mutate(
-          #     indiv_round = indiv,
-          #     indiv = paste0(indiv,".",cut_r_2),
-          #     # cut variable so it works with metaf function
-          #     cut=cut_r_2)
           cases_partitioned_guide <- partitionf(df=cases, cut_point="cut_guide") %>%
             mutate(
               indiv_round = indiv,
@@ -419,7 +358,6 @@ for(baseline2 in ActiveScenario$list_baseline2){
           #-----DGP [END]-----
           
           # saving results depending on whether or not we adjust for seasonal effect
-          ## meta-analysis function already has an if_else statement for potential seasonal adjustment
           if(season == "n"){
             
             allevent.analysis <- tryCatch(fixest::fepois(event ~ offset(log(intlength)) + expos | as.factor(indiv), data=cases, vcov="iid", ssc=ssc(adj=F)), error=function(e){NA}) %>% suppressMessages()
@@ -430,41 +368,6 @@ for(baseline2 in ActiveScenario$list_baseline2){
             
             partition2.analysis <- tryCatch(fixest::fepois(eventnum1_cut_f_2 ~ offset(log(intlength)) + expos | as.factor(indiv), data=cases_partitioned_fixed_2, cluster=~indiv_round, ssc=ssc(adj=F)), error=function(e){NA}) %>% suppressMessages()
             partitionguide.analysis <- tryCatch(fixest::fepois(eventnum1_cut_guide  ~ offset(log(intlength)) + expos | as.factor(indiv), data=cases_partitioned_guide, cluster=~indiv_round, ssc=ssc(adj=F)), error=function(e){NA}) %>% suppressMessages()
-            
-            # # BOOTSTRAP
-            # boot.results <- c()
-            # cases_boot <- cases_partitioned_guide %>% select(indiv, cut, intlength, expos, indiv_round, eventnum1_cut_guide)
-            # for(k in 1:nboot){
-            #   # 7/11/2022
-            #   ## sample cases with replacement
-            #   boot <- data.frame(indivboot = sample(1:nindiv, nindiv, replace=T))
-            #   
-            #   ## frequency table to df
-            #   boot.freq <- boot$indivboot %>% table() %>% as.data.frame
-            #   # names(boot.freq)[1] <- "indiv"
-            #   # resampled.dat <- merge(cases, boot.freq, by="indiv")
-            #   names(boot.freq)[1] <- "indiv_round"
-            #   resampled.dat <- merge(cases_boot, boot.freq, by="indiv_round")
-            #   
-            #   
-            #   boot.dat1 <- data.frame()
-            #   
-            #   ## for each frequency i of resampling
-            #   for(i in unique(resampled.dat$Freq)){
-            #     
-            #     resampled.dat2 <- resampled.dat %>% filter(Freq==i)
-            #     boot.sample.list <- replicate(i, resampled.dat2, simplify = FALSE)
-            #     # change list entry numbers 
-            #     for(j in 1:i){
-            #       boot.sample.list[[j]]$indiv_round <- paste(boot.sample.list[[j]]$indiv_round, j, sep=".")
-            #     }
-            #     # collapse list to one df for that frequency number
-            #     boot.sample.dat <- do.call("rbind", boot.sample.list)
-            #     # bind df with frequency number into overall df
-            #     boot.dat1 <- bind_rows(boot.dat1, boot.sample.dat)
-            #   }
-            #   boot.results[k] <- metaf(df=boot.dat1, eventvar="eventnum1_cut_guide", partitions=cutpoint_guide_num)
-            # }
             
             results <- results %>%
               dplyr::add_row(
@@ -477,31 +380,14 @@ for(baseline2 in ActiveScenario$list_baseline2){
                 OT_adj_2 = time_adj_2.analysis$coefficients["expos"],
                 OT_adj_guide = time_adj_guide.analysis$coefficients["expos"],
                 combinedpartition_fixed_2 = partition2.analysis$coefficients,
-                # combinedpartition_fixed_4 = tryCatch(fixest::fepois(eventnum1_cut_f_4 ~ offset(log(intlength)) + expos | as.factor(indiv), data=cases_partitioned_fixed_4, vcov="iid", ssc=ssc(adj=F))$coefficients, error=function(e){NA}) %>% suppressMessages(),
-                # combinedpartition_fixed_6 = tryCatch(fixest::fepois(eventnum1_cut_f_6 ~ offset(log(intlength)) + expos | as.factor(indiv), data=cases_partitioned_fixed_6, vcov="iid", ssc=ssc(adj=F))$coefficients, error=function(e){NA}) %>% suppressMessages(),
-                # combinedpartition_random_2 = tryCatch(fixest::fepois(eventnum1_cut_r_2 ~ offset(log(intlength)) + expos | as.factor(indiv), data=cases_partitioned_random_2, vcov="iid", ssc=ssc(adj=F))$coefficients, error=function(e){NA}) %>% suppressMessages(),
                 combinedpartition_guide = partitionguide.analysis$coefficients,
-                
-                # meta_guide = metaf(df=cases_partitioned_guide, eventvar="eventnum1_cut_guide", partitions=cutpoint_guide_num),
                 
                 iidse_allevent = allevent.analysis$se,
                 iidse_firstevent = firstevent.analysis$se,
                 iidse_OT_adj_2 = time_adj_2.analysis$se["expos"],
                 iidse_OT_adj_guide = time_adj_guide.analysis$se["expos"],
-                # iidse_combinedpartition_fixed_2 = tryCatch(fixest::fepois(eventnum1_cut_f_2 ~ offset(log(intlength)) + expos | as.factor(indiv), data=cases_partitioned_fixed_2, vcov="iid", ssc=ssc(adj=F))$se, error=function(e){NA}) %>% suppressMessages(),
-                # iidse_combinedpartition_fixed_4 = tryCatch(fixest::fepois(eventnum1_cut_f_4 ~ offset(log(intlength)) + expos | as.factor(indiv), data=cases_partitioned_fixed_4, vcov="iid", ssc=ssc(adj=F))$se, error=function(e){NA}) %>% suppressMessages(),
-                # iidse_combinedpartition_fixed_6 = tryCatch(fixest::fepois(eventnum1_cut_f_6 ~ offset(log(intlength)) + expos | as.factor(indiv), data=cases_partitioned_fixed_6, vcov="iid", ssc=ssc(adj=F))$se, error=function(e){NA}) %>% suppressMessages(),
-                # iidse_combinedpartition_random_2 = tryCatch(fixest::fepois(eventnum1_cut_r_2 ~ offset(log(intlength)) + expos | as.factor(indiv), data=cases_partitioned_random_2, vcov="iid", ssc=ssc(adj=F))$se, error=function(e){NA}) %>% suppressMessages(),
-                # iidse_combinedpartition_guide = tryCatch(fixest::fepois(eventnum1_cut_guide  ~ offset(log(intlength)) + expos | as.factor(indiv), data=cases_partitioned_guide, vcov="iid", ssc=ssc(adj=F))$se, error=function(e){NA}) %>% suppressMessages(),
-                
-                # clusterse_allevent = tryCatch(fixest::fepois(event ~ offset(log(intlength)) + expos | as.factor(indiv), data=cases, cluster=~indiv, ssc=ssc(adj=F))$se, error=function(e){NA}) %>% suppressMessages(),
-                # clusterse_firstevent = tryCatch(fixest::fepois(eventnum1 ~ offset(log(intlength)) + expos | as.factor(indiv), data=cases, cluster=~indiv, ssc=ssc(adj=F))$se, error=function(e){NA}) %>% suppressMessages(),
                 clusterse_combinedpartition_fixed_2 = partition2.analysis$se,
-                # clusterse_combinedpartition_fixed_4 = tryCatch(fixest::fepois(eventnum1_cut_f_4 ~ offset(log(intlength)) + expos | as.factor(indiv), data=cases_partitioned_fixed_4, cluster=~indiv_round, ssc=ssc(adj=F))$se, error=function(e){NA}) %>% suppressMessages(),
-                # clusterse_combinedpartition_fixed_6 = tryCatch(fixest::fepois(eventnum1_cut_f_6 ~ offset(log(intlength)) + expos | as.factor(indiv), data=cases_partitioned_fixed_6, cluster=~indiv_round, ssc=ssc(adj=F))$se, error=function(e){NA}) %>% suppressMessages(),
-                # clusterse_combinedpartition_random_2 = tryCatch(fixest::fepois(eventnum1_cut_r_2 ~ offset(log(intlength)) + expos | as.factor(indiv), data=cases_partitioned_random_2, cluster=~indiv_round, ssc=ssc(adj=F))$se, error=function(e){NA}) %>% suppressMessages(),
                 clusterse_combinedpartition_guide = partitionguide.analysis$se
-                # bootstrapse_meta_guide = sd(boot.results)
               )
           }else if(season == "y"){
             
@@ -514,47 +400,11 @@ for(baseline2 in ActiveScenario$list_baseline2){
             partition2.analysis <- tryCatch(fixest::fepois(eventnum1_cut_f_2 ~ offset(log(intlength)) + expos + season | as.factor(indiv), data=cases_partitioned_fixed_2, cluster=~indiv_round, ssc=ssc(adj=F)), error=function(e){NA}) %>% suppressMessages()
             partitionguide.analysis <- tryCatch(fixest::fepois(eventnum1_cut_guide  ~ offset(log(intlength)) + expos + season | as.factor(indiv), data=cases_partitioned_guide, cluster=~indiv_round, ssc=ssc(adj=F)), error=function(e){NA}) %>% suppressMessages()
             
-            # # Bootstrap
-            # boot.results <- c()
-            # cases_boot <- cases_partitioned_guide %>% select(indiv, cut, intlength, expos, indiv_round, eventnum1_cut_guide, season)
-            # for(k in 1:nboot){
-            #   # 7/11/2022
-            #   ## sample cases with replacement
-            #   boot <- data.frame(indivboot = sample(1:nindiv, nindiv, replace=T))
-            #   
-            #   ## frequency table to df
-            #   boot.freq <- boot$indivboot %>% table() %>% as.data.frame
-            #   # names(boot.freq)[1] <- "indiv"
-            #   # resampled.dat <- merge(cases, boot.freq, by="indiv")
-            #   names(boot.freq)[1] <- "indiv_round"
-            #   resampled.dat <- merge(cases_boot, boot.freq, by="indiv_round")
-            #   
-            #   
-            #   boot.dat1 <- data.frame()
-            #   
-            #   ## for each frequency i of resampling
-            #   for(i in unique(resampled.dat$Freq)){
-            #     
-            #     resampled.dat2 <- resampled.dat %>% filter(Freq==i)
-            #     boot.sample.list <- replicate(i, resampled.dat2, simplify = FALSE)
-            #     # change list entry numbers 
-            #     for(j in 1:i){
-            #       boot.sample.list[[j]]$indiv_round <- paste(boot.sample.list[[j]]$indiv_round, j, sep=".")
-            #     }
-            #     # collapse list to one df for that frequency number
-            #     boot.sample.dat <- do.call("rbind", boot.sample.list)
-            #     # bind df with frequency number into overall df
-            #     boot.dat1 <- bind_rows(boot.dat1, boot.sample.dat)
-            #   }
-            #   boot.results[k] <- metaf(df=boot.dat1, eventvar="eventnum1_cut_guide", partitions=cutpoint_guide_num)
-            # }
-            
             results <- results %>%
               dplyr::add_row(
                 scenario = ScenarioNumber,
                 
                 cond_baseline2_E.events=baseline2*ntime, cond_RIexpo=RIexpo, cond_eventdependence=eventdependence, cond_exposdist=exposdist, cond_season=season,
-                
                 
                 allevent = allevent.analysis$coefficients["expos"],
                 firstevent = firstevent.analysis$coefficients["expos"],
@@ -569,34 +419,6 @@ for(baseline2 in ActiveScenario$list_baseline2){
                 iidse_OT_adj_guide = time_adj_guide.analysis$se["expos"],
                 clusterse_combinedpartition_fixed_2 = partition2.analysis$se["expos"],
                 clusterse_combinedpartition_guide = partitionguide.analysis$se["expos"]
-
-                # allevent = tryCatch(fixest::fepois(event ~ offset(log(intlength)) + expos + season | as.factor(indiv), data=cases, vcov="iid", ssc=ssc(adj=F))$coefficients["expos"], error=function(e){NA}) %>% suppressMessages(),
-                # firstevent = tryCatch(fixest::fepois(eventnum1 ~ offset(log(intlength)) + expos + season | as.factor(indiv), data=cases, vcov="iid", ssc=ssc(adj=F))$coefficients["expos"], error=function(e){NA}) %>% suppressMessages(),
-                # combinedpartition_fixed_2 = tryCatch(fixest::fepois(eventnum1_cut_f_2 ~ offset(log(intlength)) + expos + season | as.factor(indiv), data=cases_partitioned_fixed_2, cluster=~indiv_round, ssc=ssc(adj=F))$coefficients["expos"], error=function(e){NA}) %>% suppressMessages(),
-                # combinedpartition_fixed_4 = tryCatch(fixest::fepois(eventnum1_cut_f_4 ~ offset(log(intlength)) + expos + season | as.factor(indiv), data=cases_partitioned_fixed_4, cluster=~indiv_round, ssc=ssc(adj=F))$coefficients["expos"], error=function(e){NA}) %>% suppressMessages(),
-                # combinedpartition_fixed_6 = tryCatch(fixest::fepois(eventnum1_cut_f_6 ~ offset(log(intlength)) + expos + season | as.factor(indiv), data=cases_partitioned_fixed_6, cluster=~indiv_round, ssc=ssc(adj=F))$coefficients["expos"], error=function(e){NA}) %>% suppressMessages(),
-                # combinedpartition_random_2 = tryCatch(fixest::fepois(eventnum1_cut_r_2 ~ offset(log(intlength)) + expos + season | as.factor(indiv), data=cases_partitioned_random_2, cluster=~indiv_round, ssc=ssc(adj=F))$coefficients["expos"], error=function(e){NA}) %>% suppressMessages(),
-                # combinedpartition_guide = tryCatch(fixest::fepois(eventnum1_cut_guide ~ offset(log(intlength)) + expos + season | as.factor(indiv), data=cases_partitioned_guide, cluster=~indiv_round, ssc=ssc(adj=F))$coefficients["expos"], error=function(e){NA}) %>% suppressMessages(),
-                # 
-                # meta_guide = metaf(df=cases_partitioned_guide, eventvar="eventnum1_cut_guide", partitions=cutpoint_guide_num),
-                # 
-                # iidse_allevent = tryCatch(fixest::fepois(event ~ offset(log(intlength)) + expos + season | as.factor(indiv), data=cases, vcov="iid", ssc=ssc(adj=F))$se["expos"], error=function(e){NA}) %>% suppressMessages(),
-                # iidse_firstevent = tryCatch(fixest::fepois(eventnum1 ~ offset(log(intlength)) + expos + season | as.factor(indiv), data=cases, vcov="iid", ssc=ssc(adj=F))$se["expos"], error=function(e){NA}) %>% suppressMessages(),
-                # iidse_combinedpartition_fixed_2 = tryCatch(fixest::fepois(eventnum1_cut_f_2 ~ offset(log(intlength)) + expos + season | as.factor(indiv), data=cases_partitioned_fixed_2, vcov="iid", ssc=ssc(adj=F))$se["expos"], error=function(e){NA}) %>% suppressMessages(),
-                # iidse_combinedpartition_fixed_4 = tryCatch(fixest::fepois(eventnum1_cut_f_4 ~ offset(log(intlength)) + expos + season | as.factor(indiv), data=cases_partitioned_fixed_4, vcov="iid", ssc=ssc(adj=F))$se["expos"], error=function(e){NA}) %>% suppressMessages(),
-                # iidse_combinedpartition_fixed_6 = tryCatch(fixest::fepois(eventnum1_cut_f_6 ~ offset(log(intlength)) + expos + season | as.factor(indiv), data=cases_partitioned_fixed_6, vcov="iid", ssc=ssc(adj=F))$se["expos"], error=function(e){NA}) %>% suppressMessages(),
-                # iidse_combinedpartition_random_2 = tryCatch(fixest::fepois(eventnum1_cut_r_2 ~ offset(log(intlength)) + expos + season | as.factor(indiv), data=cases_partitioned_random_2, vcov="iid", ssc=ssc(adj=F))$se["expos"], error=function(e){NA}) %>% suppressMessages(),
-                # iidse_combinedpartition_guide = tryCatch(fixest::fepois(eventnum1_cut_guide ~ offset(log(intlength)) + expos + season | as.factor(indiv), data=cases_partitioned_guide, vcov="iid", ssc=ssc(adj=F))$se["expos"], error=function(e){NA}) %>% suppressMessages(),
-                # 
-                # clusterse_allevent = tryCatch(fixest::fepois(event ~ offset(log(intlength)) + expos + season | as.factor(indiv), data=cases, cluster=~indiv, ssc=ssc(adj=F))$se["expos"], error=function(e){NA}) %>% suppressMessages(),
-                # clusterse_firstevent = tryCatch(fixest::fepois(eventnum1 ~ offset(log(intlength)) + expos + season | as.factor(indiv), data=cases, cluster=~indiv, ssc=ssc(adj=F))$se["expos"], error=function(e){NA}) %>% suppressMessages(),
-                # clusterse_combinedpartition_fixed_2 = tryCatch(fixest::fepois(eventnum1_cut_f_2 ~ offset(log(intlength)) + expos + season | as.factor(indiv), data=cases_partitioned_fixed_2, cluster=~indiv_round, ssc=ssc(adj=F))$se["expos"], error=function(e){NA}) %>% suppressMessages(),
-                # clusterse_combinedpartition_fixed_4 = tryCatch(fixest::fepois(eventnum1_cut_f_4 ~ offset(log(intlength)) + expos + season | as.factor(indiv), data=cases_partitioned_fixed_4, cluster=~indiv_round, ssc=ssc(adj=F))$se["expos"], error=function(e){NA}) %>% suppressMessages(),
-                # clusterse_combinedpartition_fixed_6 = tryCatch(fixest::fepois(eventnum1_cut_f_6 ~ offset(log(intlength)) + expos + season | as.factor(indiv), data=cases_partitioned_fixed_6, cluster=~indiv_round, ssc=ssc(adj=F))$se["expos"], error=function(e){NA}) %>% suppressMessages(),
-                # clusterse_combinedpartition_random_2 = tryCatch(fixest::fepois(eventnum1_cut_r_2 ~ offset(log(intlength)) + expos + season | as.factor(indiv), data=cases_partitioned_random_2, cluster=~indiv_round, ssc=ssc(adj=F))$se["expos"], error=function(e){NA}) %>% suppressMessages(),
-                # clusterse_combinedpartition_guide = tryCatch(fixest::fepois(eventnum1_cut_guide ~ offset(log(intlength)) + expos + season | as.factor(indiv), data=cases_partitioned_guide, cluster=~indiv_round, ssc=ssc(adj=F))$se["expos"], error=function(e){NA}) %>% suppressMessages(),
-                # 
-                # bootstrapse_meta_guide = sd(boot.results)
               )
           }
           
