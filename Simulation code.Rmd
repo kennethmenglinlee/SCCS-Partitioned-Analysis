@@ -414,6 +414,9 @@ for(baseline2 in ActiveScenario$list_baseline2){
               )
           }else if(season == "y"){
             
+            # entries that have multiple rows
+            casepartitions_multiple_rows <- filter(as.data.frame(table(cases_partitioned_guide$indiv)), Freq > 1)$Var1
+            
             testcase <- cases_partitioned_guide %>%
               group_by(indiv) %>%
               summarise(across(c(eventnum1_cut_guide, expos, season), sum)) %>%
@@ -445,7 +448,7 @@ for(baseline2 in ActiveScenario$list_baseline2){
                 FEA_included = sum(cases$eventnum1), 
                 GPA_included =  nrow(testcase %>% filter(eventnum1_cut_guide > 0)),
                 # number of included events that contribute to the likelihood
-                GPA_included_cont = nrow(testcase %>% filter(eventnum1_cut_guide > 0) %>% filter(expos > 0  | season > 0)),
+                GPA_included_cont = nrow(testcase %>% filter(eventnum1_cut_guide > 0) %>% filter(indiv %in% casepartitions_multiple_rows) %>% filter(expos > 0  | season > 0)),
                 
                 # Analysis point estimates
                 allevent = allevent.analysis$coefficients["expos"],
